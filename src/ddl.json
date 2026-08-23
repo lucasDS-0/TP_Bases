@@ -1,0 +1,80 @@
+[
+  {
+    "name": "user",
+    "fields": [
+      {
+        "field_name": "username",
+        "field_type": "VARCHAR(30)",
+        "not_null": true
+      },
+      {
+        "field_name": "email",
+        "field_type": "VARCHAR(64)",
+        "not_null": true
+      },
+      {
+        "field_name": "password",
+        "field_type": "VARCHAR(128)",
+        "not_null": true
+      },
+      {
+        "field_name": "confirmed_at",
+        "field_type": "DATETIME",
+        "not_null": false
+      }
+    ],
+    "fk_list": [
+      {
+        "fk_name": "inviter_id",
+        "references": "user"
+      }
+    ],
+    "pk": [
+      "username"
+    ],
+    "uk_list": [
+      "username",
+      "email"
+    ]
+  }
+  ,
+    {
+    "name": "user2",
+    "fields": [
+      {
+        "field_name": "username",
+        "field_type": "VARCHAR(30)",
+        "not_null": true
+      },
+      {
+        "field_name": "email",
+        "field_type": "VARCHAR(64)",
+        "not_null": true
+      },
+      {
+        "field_name": "password",
+        "field_type": "VARCHAR(128)",
+        "not_null": true
+      },
+      {
+        "field_name": "confirmed_at",
+        "field_type": "DATETIME",
+        "not_null": false
+      }
+    ],
+    "fk_list": [
+      {
+        "fk_name": "inviter_id",
+        "references": "user"
+      }
+    ],
+    "pk": [
+      "email"
+    ],
+    "uk_list": [
+      "username",
+      "email"
+    ]
+  }
+
+]
