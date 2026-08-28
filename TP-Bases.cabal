@@ -63,7 +63,9 @@ executable TP-Bases
 
     -- Modules included in this executable, other than Main.
     other-modules:    DLLParser,
-                      PKDetector
+                      PKDetector,
+                      HintParser,
+                      QueryParser
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

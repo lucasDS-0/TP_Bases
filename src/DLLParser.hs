@@ -15,13 +15,13 @@ import GHC.Generics (Generic)
 data Field = Field 
     { field_name :: T.Text
     , field_type :: T.Text
-    , not_null :: Bool
+    , not_null   :: Bool
     } deriving (Show, Generic)
 
 instance FromJSON Field
 
 data FKey = FKey
-    { fk_name :: T.Text
+    { fk_name    :: T.Text
     , references :: T.Text
     } deriving (Show, Generic)
 

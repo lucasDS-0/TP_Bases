@@ -24,83 +24,15 @@ import GHC.Base (undefined)
 import Text.Parsec as TP
 import Text.Parsec.Text (Parser)
 import Control.Monad
+import HintParser
+import QueryParser
 
 
 queryFile :: FilePath
 queryFile = "query_general.sql"
 
-data Hint = AllowNoPK | NoFlag
-  deriving (Eq, Show)
-
-data SQLHint = Alias T.Text
-             | Name T.Text
-             | Join SQLHint SQLHint Hint
-             | Malformed TP.ParseError
-               deriving (Eq, Show)
-
 data SQLPair = HQPair SQLHint SQLQuery
   deriving (Eq, Show)
-
-parseHintLine :: Parser SQLHint
-parseHintLine = do
-  void $ string "// sql-hint "
-  TP.spaces
-  sqlHint <- parseStructure
-  TP.spaces
-  TP.eof
-  return sqlHint
-
-parseStructure :: Parser SQLHint
-parseStructure = do
-  sourceParser <|> joinParser
-
-joinParser :: Parser SQLHint
-joinParser = do
-  void $ string "join"
-  TP.char '('
-  TP.spaces
-  leftTarget <- parseStructure
-  TP.spaces
-  TP.char ','
-  TP.spaces
-  rightTarget <- parseStructure
-  TP.spaces
-  TP.char ','
-  TP.spaces
-  hint <- parseHint
-  TP.spaces
-  TP.char ')'
-  return (Join leftTarget rightTarget hint)
-
-parseHint :: Parser Hint
-parseHint = do
-  noPKParser <|> noFlagParser
-
-noPKParser :: Parser Hint
-noPKParser = do
-  void $ string "allow-no-pk"
-  return AllowNoPK
-
-noFlagParser :: Parser Hint
-noFlagParser = do
-  void $ string "no-flag"
-  return NoFlag
-
-sourceParser :: Parser SQLHint
-sourceParser = do
-  aliasParser <|> nameParser
-
-aliasParser :: Parser SQLHint
-aliasParser = do
-  void $ string "alias "
-  alias <- TP.many1 TP.alphaNum
-  return (PKDetector.Alias (T.pack alias))
-
-nameParser :: Parser SQLHint
-nameParser = do
-  void $ string "name "
-  name <- TP.many1 TP.alphaNum
-  return (PKDetector.Name (T.pack name))
 
 readCode :: [ T.Text ] -> [ SQLPair ]
 readCode []          = []
@@ -120,75 +52,7 @@ readParseHint hint = case TP.parse parseHintLine "" hint of
   Left err     -> Malformed err
   Right parsed -> parsed
 
-stripVar :: [ T.Text ] -> [ T.Text ]
-stripVar [] = []
-stripVar (varLine : query) = T.tail (T.dropWhile (/= '`') varLine) : query
-
-getQuery :: IO BL.ByteString
-getQuery = BL.readFile queryFile
-
-nameAsText :: Name -> T.Text
-nameAsText (S.Name _ name) = name
-
-namesAsText :: [ Name ] -> [ T.Text ]
-namesAsText = Prelude.map nameAsText
-
-data Method = On | Using
-  deriving (Eq, Show)
-
-data SQLQuery = Table T.Text T.Text
-              -- name alias
-              | JoinOnClause SQLQuery SQLQuery T.Text T.Text
-              -- left_target right_target left_field right_field
-              | JoinUsingClause SQLQuery SQLQuery T.Text
-              -- left_target right_target field
-              | UnsupportedQuery T.Text
-              -- query not supported
-                deriving (Eq, Show)
-
-extractAlias :: Alias -> T.Text
-extractAlias (S.Alias name _) = nameAsText name
-
-extractTargets :: TableRef -> SQLQuery
-extractTargets (TRSimple [name]) = PKDetector.Table (nameAsText name) (nameAsText name)
-extractTargets (TRQueryExpr Select {qeFrom=[tr]}) = extractTargets tr
-extractTargets (TRAlias (TRSimple [name]) alias) = 
-  PKDetector.Table (nameAsText name) (extractAlias alias)
-extractTargets (TRAlias (TRQueryExpr Select {qeFrom=[tr]}) alias) = 
-  PKDetector.Table (((\(PKDetector.Table name _) -> name) . extractTargets) tr) 
-                   (extractAlias alias)
-extractTargets (TRJoin tra _ joinType trb (Just (JoinUsing [name]))) = 
-  if joinType `notElem` [JInner, JLeft]
-  then UnsupportedQuery (T.pack "")
-  else JoinUsingClause (extractTargets tra) (extractTargets trb) (nameAsText name)
-extractTargets (TRJoin tra _ joinType trb (Just (JoinOn se))) = 
-  if joinType `notElem` [JInner, JLeft]
-  then UnsupportedQuery (T.pack "")
-  else uncurry (JoinOnClause (extractTargets tra) (extractTargets trb)) (joinOnTargets se)
-extractTargets _ = UnsupportedQuery (T.pack "")
-
-joinOnTargets :: ScalarExpr -> (T.Text, T.Text)
-joinOnTargets (BinOp (Iden e1) _ (Iden e2)) = (namesAsText e1!!1, namesAsText e2!!1)
-joinOnTargets _                             = (T.pack "", T.pack "")
-
-{--
-data Operation = InnerJoin | LeftJoin
-  deriving (Eq, Show)
-
-data Method = On | Using
-  deriving (Eq, Show)
-
---}
-
-{--
-statementJoinTargets :: Statement -> [ (T.Text, T.Text) ]
-statementJoinTargets (SelectStatement (Select{qeFrom= [fromRecord]})) =
-    embelishTargets $ extractTargets fromRecord
---}
-
-statementJoinTargets :: Statement -> SQLQuery
-statementJoinTargets (SelectStatement (Select{qeFrom= [fromRecord]})) =
-    extractTargets fromRecord
+-- asdasdsad
 
 parseQuery :: FilePath -> IO ()
 parseQuery file = do
