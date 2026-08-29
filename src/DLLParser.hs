@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module DLLParser (parseDLL) where
+module DLLParser where
 
 import Data.Aeson
 import Data.Text as T
@@ -47,14 +47,12 @@ uniqueKey t = (name t, uk_list t)
 primaryKey :: Table -> (T.Text, [ T.Text ])
 primaryKey t = (name t, pk t)
 
-parseDLL :: FilePath -> IO ()
-parseDLL f = do
-    d <- (eitherDecode <$> (B.readFile f)) :: IO (Either String Base)
-    case d of
-        Left err            -> putStrLn err
-        Right (Base tablas) -> putStrLn $ "[" 
-          ++ (Data.List.intercalate "," (Prelude.map (showCorrectly . primaryKey) tablas)) 
-          ++ "]"
+parseDLL :: Either String Base -> String
+parseDLL f = case f of
+    Left err            -> err
+    Right (Base tablas) -> "[" 
+      ++ (Data.List.intercalate "," (Prelude.map (showCorrectly . primaryKey) tablas)) 
+      ++ "]"
   where
     showCorrectly (tab, pks) = "(" 
                             ++ (T.unpack tab) 

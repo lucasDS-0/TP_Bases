@@ -18,9 +18,6 @@ stripVar :: [ T.Text ] -> [ T.Text ]
 stripVar []                = []
 stripVar (varLine : query) = T.tail (T.dropWhile (/= '`') varLine) : query
 
-getQuery :: FilePath -> IO BL.ByteString
-getQuery = BL.readFile
-
 nameAsText :: Name -> T.Text
 nameAsText (S.Name _ name) = name
 

@@ -14,5 +14,4 @@ defaultQueryFile = "sql_hint.ts"
 main :: IO ()
 main = do
     args <- getArgs
-    parseDLL (head args)
-    parseQuery (args!!1)
+    parseQuery (head args) (args!!1)

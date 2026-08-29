@@ -20,16 +20,17 @@ import Data.Text.Lazy.Encoding    as TL
 import Data.Text.Lazy.IO          as TL
 import Data.Aeson.Encode.Pretty
 import Data.List
-import GHC.Base (undefined)
 import Text.Parsec as TP
 import Text.Parsec.Text (Parser)
 import Control.Monad
 import HintParser
 import QueryParser
+import DLLParser
+import Data.Aeson
 
 
 queryFile :: FilePath
-queryFile = "query_general.sql"
+queryFile = "sql_hint.ts"
 
 data SQLPair = HQPair SQLHint SQLQuery
   deriving (Eq, Show)
@@ -54,11 +55,12 @@ readParseHint hint = case TP.parse parseHintLine "" hint of
 
 -- asdasdsad
 
-parseQuery :: FilePath -> IO ()
-parseQuery file = do
+parseQuery :: FilePath -> FilePath -> IO ()
+parseQuery dllFile hintFile = do
     -- archivos
     --query <- getQuery
-    hintFile <- T.readFile file
+    readDLL  <- eitherDecode <$> BL.readFile dllFile
+    readHint <- T.readFile hintFile
 
     -- query completa
     --Prelude.putStrLn $ either (T.unpack . prettyError) (T.unpack . prettyStatement ansi2011) $ parseStatement ansi2011 (T.pack "") Nothing (T.decodeUtf8 (B.concat $ BL.toChunks query))
@@ -72,4 +74,5 @@ parseQuery file = do
       --        $ parseStatement ansi2011 (T.pack "") Nothing (T.decodeUtf8 (B.concat $ BL.toChunks query))
 
     -- HQPairs
-    mapM_ print $ readCode $ T.lines hintFile
+    Prelude.putStrLn $ parseDLL readDLL
+    mapM_ print $ readCode $ T.lines readHint
