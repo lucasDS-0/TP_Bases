@@ -1,7 +1,8 @@
-module Main (main) where
 
+-- | Main.hs
 
-import DLLParser
+module Main where
+
 import PKDetector
 import GHC.Internal.System.Environment (getArgs)
 

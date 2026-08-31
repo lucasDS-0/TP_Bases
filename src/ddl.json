@@ -29,13 +29,8 @@
         "references": "user"
       }
     ],
-    "pk": [
-      "username"
-    ],
-    "uk_list": [
-      "username",
-      "email"
-    ]
+    "pk": "username",
+    "uk": "email"
   }
   ,
     {
@@ -68,13 +63,8 @@
         "references": "user"
       }
     ],
-    "pk": [
-      "email"
-    ],
-    "uk_list": [
-      "username",
-      "email"
-    ]
+    "pk":"email",
+    "uk": "username"
   }
 
 ]

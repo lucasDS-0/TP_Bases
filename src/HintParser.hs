@@ -18,6 +18,20 @@ data SQLHint = Alias T.Text
              | Malformed TP.ParseError
                deriving (Eq, Show)
 
+foldHint :: (T.Text -> a) 
+         -> (T.Text -> a) 
+         -> (a -> a -> Hint -> a) 
+         -> (TP.ParseError -> a) 
+         -> SQLHint
+         -> a
+foldHint fAlias fName fJoin fMalformed sqlh = case sqlh of
+    Alias alias        -> fAlias alias
+    Name name          -> fName name
+    Join sqlh1 sqlh2 h -> fJoin (hrec sqlh1) (hrec sqlh2) h
+    Malformed err      -> fMalformed err
+  where
+    hrec = foldHint fAlias fName fJoin fMalformed
+
 parseHintLine :: Parser SQLHint
 parseHintLine = do
   void $ string "// sql-hint "
