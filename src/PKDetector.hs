@@ -27,16 +27,15 @@ import HintParser
 import QueryParser
 import DLLParser
 import Data.Aeson
+import Data.Either
 
-
-queryFile :: FilePath
-queryFile = "sql_hint.ts"
 
 data SQLPair = HQPair SQLHint SQLQuery
   deriving (Eq, Show)
 
 data FlaggedQuery = Table (T.Text, T.Text)
                   | JoinClause FlaggedQuery T.Text FlaggedQuery T.Text Hint
+                  deriving (Eq, Show)
 
 foldFlaggedQuery :: ((T.Text, T.Text) -> a) 
                  -> (a -> T.Text -> a -> T.Text -> Hint -> a)
@@ -48,9 +47,13 @@ foldFlaggedQuery fTable fJoin fq = case fq of
   where
     rec = foldFlaggedQuery fTable fJoin
 
+-- Pre: Las tablas utilizadas están presentes en la lista de tablas de la base
+pkFrom :: [ (T.Text, T.Text) ] -> T.Text -> T.Text
+pkFrom pks e = Data.List.foldr (\(t,pk) rec -> if t == e then pk else rec) T.empty pks
+
 -- PRE: hint y query tienen la misma estructura
-queryTree :: Base -> SQLHint -> SQLQuery -> FlaggedQuery
-queryTree base sqlh sqlq = 
+queryTree :: Base -> SQLPair -> FlaggedQuery
+queryTree base (HQPair sqlh sqlq) = 
   foldQuery (\name _ -> \_ -> PKDetector.Table (name, pkFrom pks name)) 
             (\recQ1 recQ2 f1 f2 -> 
               \(Join h1 h2 h) -> JoinClause (recQ1 h1) f1 (recQ2 h2) f2 h)
@@ -125,9 +128,7 @@ calculatePK base@(Base tablas) hqp =
     hqp = HQPair sqlHint sqlQuery
     structureCheck = hintQueryMatch hqp
 --}
--- Pre: Las tablas utilizadas están presentes en la lista de tablas de la base
-pkFrom :: [ (T.Text, T.Text) ] -> T.Text -> T.Text
-pkFrom pks e = Data.List.foldr (\(t,pk) rec -> if t == e then pk else rec) T.empty pks
+
 {--
 pkCheck :: (T.Text, T.Text) -> (T.Text, T.Text) -> [(T.Text, T.Text)] 
         -> Either T.Text [(T.Text, T.Text)]
@@ -175,4 +176,5 @@ parseQuery dllFile hintFile = do
     -- HQPairs
     --Prelude.putStrLn $ Prelude.map (\(t,pk) -> (T.unpack t, T.unpack pk)) $ parseDLLPks readDLL
     mapM_ print $ parseDLLPks readDLL
-    mapM_ print $ readCode $ T.lines readHint
+    print $ queryTree (fromRight (Base []) readDLL) ((!!1) $ readCode $ T.lines readHint)
+
