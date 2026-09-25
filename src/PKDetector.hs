@@ -28,16 +28,20 @@ import QueryParser
 import DLLParser
 import Data.Aeson
 import Data.Either
+import HintParser (Hint(AllowNoPK, NoFlag))
 
 
 data SQLPair = HQPair SQLHint SQLQuery
   deriving (Eq, Show)
 
-data FlaggedQuery = Table (T.Text, T.Text)
+-- left-recursive 
+data FlaggedQuery = Table T.Text
+                  -- nombre_de_tabla pk_de_tabla
                   | JoinClause FlaggedQuery T.Text FlaggedQuery T.Text Hint
+                  -- target_izq field_izq target_der field_der hint
                   deriving (Eq, Show)
 
-foldFlaggedQuery :: ((T.Text, T.Text) -> a) 
+foldFlaggedQuery :: (T.Text -> a) 
                  -> (a -> T.Text -> a -> T.Text -> Hint -> a)
                  -> FlaggedQuery
                  -> a
@@ -48,20 +52,32 @@ foldFlaggedQuery fTable fJoin fq = case fq of
     rec = foldFlaggedQuery fTable fJoin
 
 -- Pre: Las tablas utilizadas están presentes en la lista de tablas de la base
-pkFrom :: [ (T.Text, T.Text) ] -> T.Text -> T.Text
-pkFrom pks e = Data.List.foldr (\(t,pk) rec -> if t == e then pk else rec) T.empty pks
+pkFrom :: T.Text -> [ (T.Text, T.Text) ] -> T.Text
+pkFrom e = Data.List.foldr (\(t,pk) rec -> if t == e then pk else rec) T.empty
+
+pkFromQuery :: [ (T.Text, T.Text) ] -> FlaggedQuery -> Either T.Text (T.Text, T.Text)
+pkFromQuery b fq = either Left (\t -> Right (t, pkFrom t b)) $ 
+  foldFlaggedQuery Right (\rq1 t1 rq2 t2 h -> 
+    if isLeft rq1 || (rq2, t2) == (rq2, pkFrom (fromRight T.empty rq2) b)
+    then rq1
+    else if (rq1, t1) == (rq1, pkFrom (fromRight T.empty rq1) b)
+         then rq2
+         else flagJoin t1 t2 h) fq
+  where
+    flagJoin t1 t2 h = Left $ T.pack "Join de " `T.append` t1 `T.append` 
+                              T.pack " y " `T.append` t2 `T.append` hintFlag h
+    hintFlag AllowNoPK = T.pack " sin PK con allow."
+    hintFlag NoFlag = T.pack " sin PK sin allow."
 
 -- PRE: hint y query tienen la misma estructura
-queryTree :: Base -> SQLPair -> FlaggedQuery
-queryTree base (HQPair sqlh sqlq) = 
-  foldQuery (\name _ -> \_ -> PKDetector.Table (name, pkFrom pks name)) 
+queryTree :: SQLPair -> FlaggedQuery
+queryTree (HQPair sqlh sqlq) = 
+  foldQuery (\name _ -> \_ -> PKDetector.Table name) 
             (\recQ1 recQ2 f1 f2 -> 
               \(Join h1 h2 h) -> JoinClause (recQ1 h1) f1 (recQ2 h2) f2 h)
             (\recQ1 recQ2 f -> 
               \(Join h1 h2 h) -> JoinClause (recQ1 h1) f (recQ2 h2) f h)
-            (\_ -> \_ -> PKDetector.Table (T.empty, T.empty)) sqlq sqlh
-  where
-    pks = parseDLLPks (Right base) :: [ (T.Text, T.Text) ]
+            (\_ -> \_ -> PKDetector.Table T.empty) sqlq sqlh
 
 readCode :: [ T.Text ] -> [ SQLPair ]
 readCode []          = []
@@ -175,6 +191,8 @@ parseQuery dllFile hintFile = do
 
     -- HQPairs
     --Prelude.putStrLn $ Prelude.map (\(t,pk) -> (T.unpack t, T.unpack pk)) $ parseDLLPks readDLL
-    mapM_ print $ parseDLLPks readDLL
-    print $ queryTree (fromRight (Base []) readDLL) ((!!1) $ readCode $ T.lines readHint)
+    let tablasYPKs = parseDLLPks readDLL
+    mapM_ print $ tablasYPKs
+    --mapM_ print $ Prelude.map (queryTree (fromRight (Base []) readDLL)) (readCode $ T.lines readHint)
+    mapM_ print $ Prelude.map (pkFromQuery tablasYPKs)$ Prelude.map queryTree (readCode $ T.lines readHint)
 

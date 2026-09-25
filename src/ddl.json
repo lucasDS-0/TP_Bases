@@ -1,43 +1,52 @@
 [
   {
-    "name": "user",
+    "name": "asignaciones",
     "fields": [
       {
-        "field_name": "username",
+        "field_name": "codigo",
         "field_type": "VARCHAR(30)",
         "not_null": true
       },
       {
-        "field_name": "email",
+        "field_name": "empleado",
+        "field_type": "VARCHAR(30)",
+        "not_null": true
+      },
+      {
+        "field_name": "trimestre",
         "field_type": "VARCHAR(64)",
         "not_null": true
-      },
-      {
-        "field_name": "password",
-        "field_type": "VARCHAR(128)",
-        "not_null": true
-      },
-      {
-        "field_name": "confirmed_at",
-        "field_type": "DATETIME",
-        "not_null": false
       }
     ],
-    "fk_list": [
-      {
-        "fk_name": "inviter_id",
-        "references": "user"
-      }
-    ],
-    "pk": "username",
-    "uk": "email"
+    "fk_list": [],
+    "pk":"codigo",
+    "uk": ""
   }
   ,
-    {
-    "name": "user2",
+  {
+    "name": "trimestres",
     "fields": [
       {
-        "field_name": "username",
+        "field_name": "trimestre",
+        "field_type": "VARCHAR(30)",
+        "not_null": true
+      },
+      {
+        "field_name": "desc",
+        "field_type": "VARCHAR(64)",
+        "not_null": true
+      }
+    ],
+    "fk_list": [],
+    "pk":"trimestre",
+    "uk": ""
+  }
+  ,
+  {
+    "name": "empleados",
+    "fields": [
+      {
+        "field_name": "empleado",
         "field_type": "VARCHAR(30)",
         "not_null": true
       },
@@ -45,26 +54,11 @@
         "field_name": "email",
         "field_type": "VARCHAR(64)",
         "not_null": true
-      },
-      {
-        "field_name": "password",
-        "field_type": "VARCHAR(128)",
-        "not_null": true
-      },
-      {
-        "field_name": "confirmed_at",
-        "field_type": "DATETIME",
-        "not_null": false
       }
     ],
-    "fk_list": [
-      {
-        "fk_name": "inviter_id",
-        "references": "user"
-      }
-    ],
-    "pk":"email",
-    "uk": "username"
+    "fk_list": [],
+    "pk":"empleado",
+    "uk": "email"
   }
 
 ]

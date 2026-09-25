@@ -12,7 +12,7 @@ asd
 
 
 
-// sql-hint join( join(alias e, alias a, allow-no-pk), alias t, allow-no-pk)
+// sql-hint join( join(alias e, alias a, no-flag), alias t, no-flag)
 var sqlExcesoAsignaciones = `
     SELECT empleado, count(*)
         FROM empleados e
