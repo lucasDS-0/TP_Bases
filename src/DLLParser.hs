@@ -22,7 +22,7 @@ instance Aeson.FromJSON Field
 data FKey = FKey
     { fk_name    :: Text.Text
     , references :: Text.Text
-    } deriving (Show, Generic) 
+    } deriving (Show, Generic)
 
 instance Aeson.FromJSON FKey
 
@@ -30,7 +30,6 @@ data Table = Table
     { name    :: Text.Text
     , fields  :: [ Field ] 
     , fk_list :: [ FKey ]
-    , uk      :: Text.Text
     , pk      :: Text.Text
     } deriving (Show, Generic)
 

@@ -43,6 +43,10 @@ foldQuery fTable fJoinOn fJoinUsing fUnsupported q = case q of
 extractAlias :: Alias -> Text.Text
 extractAlias (Alias name _) = nameAsText name
 
+joinOnTargets :: ScalarExpr -> (Text.Text, Text.Text)
+joinOnTargets (BinOp (Iden e1) _ (Iden e2)) = (namesAsText e1!!1, namesAsText e2!!1)
+joinOnTargets _                             = (Text.pack "", Text.pack "")
+
 extractTargets :: TableRef -> SQLQuery
 extractTargets t = case t of
     TRSimple [name] -> QueryParser.Table (nameAsText name) (Text.empty)
@@ -66,10 +70,6 @@ extractTargets t = case t of
     subQueryTable tr alias = case extractTargets tr of
         QueryParser.Table name _ -> QueryParser.Table name (extractAlias alias)
         _                        -> UnsupportedQuery (Text.pack "Invalid Query.")
-
-joinOnTargets :: ScalarExpr -> (Text.Text, Text.Text)
-joinOnTargets (BinOp (Iden e1) _ (Iden e2)) = (namesAsText e1!!1, namesAsText e2!!1)
-joinOnTargets _                             = (Text.pack "", Text.pack "")
 
 statementJoinTargets :: Statement -> SQLQuery
 statementJoinTargets (SelectStatement (Select{qeFrom= [fromRecord]})) =

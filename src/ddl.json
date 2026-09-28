@@ -19,8 +19,7 @@
       }
     ],
     "fk_list": [],
-    "pk":"codigo",
-    "uk": ""
+    "pk":"codigo"
   }
   ,
   {
@@ -38,8 +37,7 @@
       }
     ],
     "fk_list": [],
-    "pk":"trimestre",
-    "uk": ""
+    "pk":"trimestre"
   }
   ,
   {
@@ -57,8 +55,7 @@
       }
     ],
     "fk_list": [],
-    "pk":"empleado",
-    "uk": "email"
+    "pk":"empleado"
   }
 
 ]
