@@ -3,7 +3,7 @@
 
 module HintParser 
     ( foldHint
-    , Hint (..)
+    , HintFlag (..)
     , SQLHint (..)
     , parseHintLine
     ) where
@@ -15,7 +15,7 @@ import Text.Parsec as TP ((<|>), alphaNum, char, eof, many1, ParseError, spaces,
 import qualified Data.Text as Text
  
 
-data Hint 
+data HintFlag 
     = AllowNoPK 
     | NoFlag 
     deriving (Eq, Show)
@@ -23,13 +23,13 @@ data Hint
 data SQLHint 
     = Alias Text.Text
     | Name Text.Text
-    | Join SQLHint SQLHint Hint
+    | Join SQLHint SQLHint HintFlag
     | Malformed TP.ParseError
     deriving (Eq, Show)
 
 foldHint :: (Text.Text -> a) 
          -> (Text.Text -> a) 
-         -> (a -> a -> Hint -> a) 
+         -> (a -> a -> HintFlag -> a) 
          -> (TP.ParseError -> a) 
          -> SQLHint
          -> a
@@ -72,16 +72,16 @@ joinParser = do
   _ <- TP.char ')'
   return (Join leftTarget rightTarget hint)
 
-parseHint :: Parser Hint
+parseHint :: Parser HintFlag
 parseHint = do
   noPKParser <|> noFlagParser
 
-noPKParser :: Parser Hint
+noPKParser :: Parser HintFlag
 noPKParser = do
   void $ string "allow-no-pk"
   return AllowNoPK
 
-noFlagParser :: Parser Hint
+noFlagParser :: Parser HintFlag
 noFlagParser = do
   void $ string "no-flag"
   return NoFlag

@@ -10,7 +10,7 @@ import Language.SQL.SimpleSQL.Parse (ansi2011, parseStatement, prettyError)
 import Data.Either (fromRight, isLeft)
 import Data.Maybe (fromJust, isJust)
 
-import HintParser (Hint (..), parseHintLine, SQLHint (..))
+import HintParser (HintFlag (..), parseHintLine, SQLHint (..))
 import QueryParser (foldQuery, SQLQuery (..), statementJoinTargets)
 
 import qualified Data.Aeson as Aeson
@@ -29,11 +29,11 @@ data SQLPair
 
 data FlaggedQuery 
     = Table T.Text
-    | JoinClause FlaggedQuery T.Text FlaggedQuery T.Text Hint
+    | JoinClause FlaggedQuery T.Text FlaggedQuery T.Text HintFlag
     deriving (Eq, Show)
 
 foldFlaggedQuery :: (T.Text -> a) 
-                 -> (a -> T.Text -> a -> T.Text -> Hint -> a)
+                 -> (a -> T.Text -> a -> T.Text -> HintFlag -> a)
                  -> FlaggedQuery
                  -> a
 foldFlaggedQuery fTable fJoin fq = case fq of
@@ -154,4 +154,3 @@ parseQuery dllFile hintFile = do
 
     let tablasYPKs = DLL.parseDLLPks readDLL
     mapM_ print $ Prelude.map (pkFromQuery tablasYPKs) (readCode $ T.lines readHint)
-
