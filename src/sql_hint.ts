@@ -1,4 +1,33 @@
 
+// sql-hint 
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados
+    `;
+
+// sql-hint name
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados
+    `;
+
+// sql-hint name asignaciones
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados
+    `;
+
+// sql-hint alias empleados
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados
+    `;
+
+// sql-hint name empleados
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados e
+    `;
 
 // sql-hint name empleados
 var sqlExcesoAsignaciones = `

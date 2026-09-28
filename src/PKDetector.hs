@@ -5,41 +5,32 @@
 
 module PKDetector (parseQuery) where
 
-import Language.SQL.SimpleSQL.Dialect
-import Language.SQL.SimpleSQL.Syntax as S
-import Language.SQL.SimpleSQL.Parse
-import Language.SQL.SimpleSQL.Pretty
-import qualified Language.SQL.SimpleSQL.Lex as L
+
+import Language.SQL.SimpleSQL.Parse (ansi2011, parseStatement, prettyError)
+import Data.Either (fromRight, isLeft)
+import Data.Maybe (fromJust, isJust)
+
+import HintParser (Hint (..), parseHintLine, SQLHint (..))
+import QueryParser (foldQuery, SQLQuery (..), statementJoinTargets)
+
+import qualified Data.Aeson as Aeson
+import qualified Data.Text.IO as TextIO
+import qualified Text.Parsec as TP
+import qualified Data.List as List
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString as B
 import qualified Data.Text as T
-import Data.Text.Encoding as T
-import Data.Text.IO as T
-import Data.Text.Lazy             as TL
-import Data.Text.Lazy.Encoding    as TL
-import Data.Text.Lazy.IO          as TL
-import Data.Aeson.Encode.Pretty
-import Data.List
-import Text.Parsec as TP
-import Text.Parsec.Text (Parser)
-import Control.Monad
-import HintParser
-import QueryParser
-import DLLParser
-import Data.Aeson
-import Data.Either
-import HintParser (Hint(AllowNoPK, NoFlag))
 
+import qualified DLLParser as DLL
+ 
 
-data SQLPair = HQPair SQLHint SQLQuery
-  deriving (Eq, Show)
+data SQLPair 
+    = HQPair SQLHint SQLQuery
+    deriving (Eq, Show)
 
--- left-recursive 
-data FlaggedQuery = Table T.Text
-                  -- nombre_de_tabla pk_de_tabla
-                  | JoinClause FlaggedQuery T.Text FlaggedQuery T.Text Hint
-                  -- target_izq field_izq target_der field_der hint
-                  deriving (Eq, Show)
+data FlaggedQuery 
+    = Table T.Text
+    | JoinClause FlaggedQuery T.Text FlaggedQuery T.Text Hint
+    deriving (Eq, Show)
 
 foldFlaggedQuery :: (T.Text -> a) 
                  -> (a -> T.Text -> a -> T.Text -> Hint -> a)
@@ -51,148 +42,117 @@ foldFlaggedQuery fTable fJoin fq = case fq of
   where
     rec = foldFlaggedQuery fTable fJoin
 
--- Pre: Las tablas utilizadas están presentes en la lista de tablas de la base
 pkFrom :: T.Text -> [ (T.Text, T.Text) ] -> T.Text
-pkFrom e = Data.List.foldr (\(t,pk) rec -> if t == e then pk else rec) T.empty
+pkFrom e = List.foldr (\(t,pk) rec -> if t == e then pk else rec) T.empty
 
-pkFromQuery :: [ (T.Text, T.Text) ] -> FlaggedQuery -> Either T.Text (T.Text, T.Text)
-pkFromQuery b fq = either Left (\t -> Right (t, pkFrom t b)) $ 
-  foldFlaggedQuery Right (\rq1 t1 rq2 t2 h -> 
-    if isLeft rq1 || (rq2, t2) == (rq2, pkFrom (fromRight T.empty rq2) b)
-    then rq1
-    else if (rq1, t1) == (rq1, pkFrom (fromRight T.empty rq1) b)
-         then rq2
-         else flagJoin t1 t2 h) fq
+pkFromQuery :: [ (T.Text, T.Text) ] -> SQLPair -> Either T.Text (T.Text, T.Text)
+pkFromQuery b sqlp 
+    | isJust checks = Left $ fromJust checks
+    | otherwise     = either Left (\t -> Right (t, pkFrom t b)) $ 
+        foldFlaggedQuery Right (\rq1 t1 rq2 t2 h -> 
+            if isLeft rq1 || pkMatch rq2 t2
+            then rq1
+            else if pkMatch rq1 t1 then rq2 else flagJoin t1 t2 h) fq
   where
-    flagJoin t1 t2 h = Left $ T.pack "Join de " `T.append` t1 `T.append` 
-                              T.pack " y " `T.append` t2 `T.append` hintFlag h
-    hintFlag AllowNoPK = T.pack " sin PK con allow."
-    hintFlag NoFlag = T.pack " sin PK sin allow."
+    checks = safetyCheck b sqlp
+    fq     = queryTree sqlp
+    flagJoin t1 t2 h   = Left $ T.pack "PK-less join between " `T.append` t1 `T.append` 
+                                T.pack " and " `T.append` t2 `T.append` hintFlag h
+    hintFlag AllowNoPK = T.pack " with allow."
+    hintFlag NoFlag    = T.pack " without allow."
+    pkMatch rq t = t == pkFrom (fromRight T.empty rq) b
 
--- PRE: hint y query tienen la misma estructura
 queryTree :: SQLPair -> FlaggedQuery
-queryTree (HQPair sqlh sqlq) = 
-  foldQuery (\name _ -> \_ -> PKDetector.Table name) 
-            (\recQ1 recQ2 f1 f2 -> 
-              \(Join h1 h2 h) -> JoinClause (recQ1 h1) f1 (recQ2 h2) f2 h)
-            (\recQ1 recQ2 f -> 
-              \(Join h1 h2 h) -> JoinClause (recQ1 h1) f (recQ2 h2) f h)
-            (\_ -> \_ -> PKDetector.Table T.empty) sqlq sqlh
+queryTree (HQPair sqlh sqlq) = foldQuery 
+    (\name  _           -> \_ -> PKDetector.Table name) 
+    (\recQ1 recQ2 f1 f2 -> joinClause recQ1 recQ2 f1 f2)
+    (\recQ1 recQ2 f     -> joinClause recQ1 recQ2 f f)
+    (\_                 -> \_ -> PKDetector.Table T.empty) sqlq sqlh
+  where
+    joinClause r1 r2 f1 f2 q = case q of
+        Join h1 h2 h -> JoinClause (r1 h1) f1 (r2 h2) f2 h
+        _            -> PKDetector.Table T.empty
 
 readCode :: [ T.Text ] -> [ SQLPair ]
 readCode []          = []
-readCode (line : xs) = if T.pack hintPrefix `T.isPrefixOf` line
-                       then HQPair (parseReadHint line) parsedQuery : readCode rest
-                       else readCode xs
+readCode (line : xs)
+    | T.pack hintPrefix `T.isPrefixOf` line = 
+        HQPair (parsedHint line) parsedQuery : readCode rest
+    | otherwise = readCode xs
   where
     hintPrefix     = "// sql-hint "
-    hintLength     = Prelude.length hintPrefix
-    (qLines, rest) = Data.List.span (\l -> T.strip l /= T.pack "`;") xs
-    query          = T.unwords . stripVar $ Data.List.map T.strip qLines
+    (qLines, rest) = List.span (\l -> T.strip l /= T.pack "`;") xs
+    query          = T.unwords . stripVar $ List.map T.strip qLines
     parsedQuery    = either (UnsupportedQuery. prettyError) statementJoinTargets
                    $ parseStatement ansi2011 (T.pack "") Nothing query
 
-parseReadHint :: T.Text -> SQLHint
-parseReadHint hint = case TP.parse parseHintLine "" hint of
-  Left err     -> Malformed err
-  Right parsed -> parsed
+stripVar :: [ T.Text ] -> [ T.Text ]
+stripVar []                = []
+stripVar (varLine : query) = T.tail (T.dropWhile (/= '`') varLine) : query
+
+parsedHint :: T.Text -> SQLHint
+parsedHint hint = case TP.parse parseHintLine "" hint of
+    Left  err    -> Malformed err
+    Right parsed -> parsed
 
 tablesPresent :: [ (T.Text, T.Text) ] -> SQLQuery -> Bool
 tablesPresent l query = 
-    Data.List.foldr (\e rec -> e `Data.List.elem` tables) True (tableNames query)
+    List.foldr (\t _ -> t `List.elem` tables) True (tableNames query)
   where
-    tables = Prelude.map fst l
-    tableNames = foldQuery (const $ (:[])) (\t1 t2 _ _ -> (++) t1 t2)
+    tables     = Prelude.map fst l
+    tableNames = foldQuery (\name _ -> [name]) (\t1 t2 _ _ -> (++) t1 t2)
                            (\t1 t2 _ -> (++) t1 t2) (const [])
 
 hintQueryMatch :: SQLPair -> Maybe T.Text
 hintQueryMatch hqp = case hqp of
-  HQPair (Malformed _) (UnsupportedQuery _) -> Nothing
-  HQPair (HintParser.Alias a) (QueryParser.Table _ alias) -> 
-    hintQueryComparison a alias
-  HQPair (HintParser.Name n) (QueryParser.Table name _)   -> 
-    hintQueryComparison n name
-  HQPair (Join h1 h2 _) (JoinOnClause q1 q2 _ _)  -> 
-    (<>) (hintQueryMatch (HQPair h1 q1)) (hintQueryMatch (HQPair h1 q2))
-  HQPair (Join h1 h2 _) (JoinUsingClause q1 q2 _) ->
-    (<>) (hintQueryMatch (HQPair h1 q1)) (hintQueryMatch (HQPair h2 q2))
-  _      -> Just (T.pack "Hint and query structures are not equivalent.\n")
+    HQPair (Malformed _) (UnsupportedQuery _) -> Nothing
+    HQPair (HintParser.Alias a) (QueryParser.Table _ alias) -> 
+        hintQueryComparison a alias
+    HQPair (HintParser.Name n) (QueryParser.Table name _)   -> 
+        hintQueryComparison n name
+    HQPair (Join h1 h2 _) (JoinOnClause q1 q2 _ _)  -> 
+        (<>) (hintQueryMatch (HQPair h1 q1)) (hintQueryMatch (HQPair h2 q2))
+    HQPair (Join h1 h2 _) (JoinUsingClause q1 q2 _) ->
+        (<>) (hintQueryMatch (HQPair h1 q1)) (hintQueryMatch (HQPair h2 q2))
+    _      -> Just (T.pack "Hint and query structures are not equivalent.")
 
 hintQueryComparison :: T.Text -> T.Text -> Maybe T.Text
-hintQueryComparison e1 e2 = 
-  if e1 == e2 
-  then Nothing
-  else Just (e1 `T.append` (T.pack " and ") 
-                `T.append` e2 
-                `T.append` (T.pack " do not match.\n"))
+hintQueryComparison e1 e2
+    | e1 == e2  = Nothing
+    | otherwise = Just (e1 `T.append` (T.pack " and ") 
+                  `T.append` e2 
+                  `T.append` (T.pack " do not match.")) 
 
-{--
-calculatePK :: Base -> SQLPair -> Either T.Text T.Text
-calculatePK base@(Base tablas) hqp = 
-  if errorPresent hqp
-  then Left (hintQueryError hqp)
-  else  if isJust structureCheck
-        then structureCheck
-        else if not (tablesPresent tablas sqlQuery)
-             then Left "Query involves non existent tables."
-             else case sqlQuery of
-                  Table name alias -> Right (pkFrom base name)
-                  JoinOnClause q1 q2 lf rf -> pkCheck 
-                  JoinUsingClause q1 q2 f  -> Right
-                  _ -> Right T.empty
+safetyCheck :: [ (T.Text, T.Text) ] -> SQLPair -> Maybe T.Text
+safetyCheck ts hqp@(HQPair _ sqlQuery)
+    | errorPresent hqp                = Just (hintQueryError hqp)
+    | isJust structureCheck           = structureCheck
+    | not (tablesPresent ts sqlQuery) = Just (T.pack "Query uses non existent tables.")
+    | otherwise = Nothing
   where
-    hqp = HQPair sqlHint sqlQuery
     structureCheck = hintQueryMatch hqp
---}
 
-{--
-pkCheck :: (T.Text, T.Text) -> (T.Text, T.Text) -> [(T.Text, T.Text)] 
-        -> Either T.Text [(T.Text, T.Text)]
-pkCheck l@(t1,_) r@(t2,_) pks = 
-  if Data.List.elem l pks
-  then Right (r:Prelude.filter (/= l) pks)
-  else if Data.List.elem r pks
-       then Right (l:Prelude.filter (/= r) pks)
-       else if checkAllowNoPk 
-            then Right (l:r:pks)
-            else Left (T.pack ("Join sin allow-no-pk entre ") `append` 
-                       t1 `append` (T.pack " y ") `append` t2)
---}
 hintQueryError :: SQLPair -> T.Text
 hintQueryError (HQPair (Malformed err1) (UnsupportedQuery err2)) = 
-  T.append (T.pack $ Prelude.show err1) err2
+    T.append (T.pack $ Prelude.show err1) err2
 hintQueryError (HQPair (Malformed err1) _)        = T.pack $ Prelude.show err1
 hintQueryError (HQPair _ (UnsupportedQuery err2)) = err2
 hintQueryError (HQPair _ _) = T.empty
 
 errorPresent :: SQLPair -> Bool
 errorPresent hqp = case hqp of
-  HQPair (Malformed _) _        -> True
-  HQPair _ (UnsupportedQuery _) -> True
-  _                             -> False
+    HQPair (Malformed _) _        -> True
+    HQPair _ (UnsupportedQuery _) -> True
+    _                             -> False
 
 parseQuery :: FilePath -> FilePath -> IO ()
 parseQuery dllFile hintFile = do
     -- archivos
-    --query <- getQuery
-    readDLL  <- eitherDecode <$> BL.readFile dllFile
-    readHint <- T.readFile hintFile
+    readDLL  <- Aeson.eitherDecode <$> BL.readFile dllFile
+    readHint <- TextIO.readFile hintFile
 
-    -- query completa
-    --Prelude.putStrLn $ either (T.unpack . prettyError) (T.unpack . prettyStatement ansi2011) $ parseStatement ansi2011 (T.pack "") Nothing (T.decodeUtf8 (B.concat $ BL.toChunks query))
-
-    --PKs de tablas
-    --Prelude.putStrLn $ either (T.unpack . prettyError) (show . statementJoinTargets)
-      --            $ parseStatement ansi2011 (T.pack "") Nothing (T.decodeUtf8 (B.concat $ BL.toChunks query))
-
-    --Parseado
-    --Prelude.putStrLn $ either (T.unpack . prettyError) (TL.unpack . TL.decodeUtf8 . encodePretty . show)
-      --        $ parseStatement ansi2011 (T.pack "") Nothing (T.decodeUtf8 (B.concat $ BL.toChunks query))
-
-    -- HQPairs
-    --Prelude.putStrLn $ Prelude.map (\(t,pk) -> (T.unpack t, T.unpack pk)) $ parseDLLPks readDLL
-    let tablasYPKs = parseDLLPks readDLL
+    let tablasYPKs = DLL.parseDLLPks readDLL
     mapM_ print $ tablasYPKs
     --mapM_ print $ Prelude.map (queryTree (fromRight (Base []) readDLL)) (readCode $ T.lines readHint)
-    mapM_ print $ Prelude.map (pkFromQuery tablasYPKs)$ Prelude.map queryTree (readCode $ T.lines readHint)
+    mapM_ print $ Prelude.map (pkFromQuery tablasYPKs) (readCode $ T.lines readHint)
 

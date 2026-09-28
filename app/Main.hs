@@ -1,9 +1,9 @@
 
 -- | Main.hs
 
-module Main where
+module Main (main) where
 
-import PKDetector
+import PKDetector 
 import GHC.Internal.System.Environment (getArgs)
 
 defaultDLLFile :: FilePath
@@ -15,4 +15,6 @@ defaultQueryFile = "sql_hint.ts"
 main :: IO ()
 main = do
     args <- getArgs
-    parseQuery (head args) (args!!1)
+    case args of
+        (dll:query:_) -> parseQuery dll query
+        _             -> parseQuery defaultDLLFile defaultQueryFile

@@ -1,25 +1,34 @@
 
 -- | HintParser.hs
 
-module HintParser where
+module HintParser 
+    ( foldHint
+    , Hint (..)
+    , SQLHint (..)
+    , parseHintLine
+    ) where
 
-import qualified Data.Text as T
+import Control.Monad (void)
 import Text.Parsec.Text (Parser)
-import Text.Parsec as TP
-import Control.Monad
+import Text.Parsec as TP ((<|>), alphaNum, char, eof, many1, ParseError, spaces, string)
 
+import qualified Data.Text as Text
+ 
 
-data Hint = AllowNoPK | NoFlag
-  deriving (Eq, Show)
+data Hint 
+    = AllowNoPK 
+    | NoFlag 
+    deriving (Eq, Show)
 
-data SQLHint = Alias T.Text
-             | Name T.Text
-             | Join SQLHint SQLHint Hint
-             | Malformed TP.ParseError
-               deriving (Eq, Show)
+data SQLHint 
+    = Alias Text.Text
+    | Name Text.Text
+    | Join SQLHint SQLHint Hint
+    | Malformed TP.ParseError
+    deriving (Eq, Show)
 
-foldHint :: (T.Text -> a) 
-         -> (T.Text -> a) 
+foldHint :: (Text.Text -> a) 
+         -> (Text.Text -> a) 
          -> (a -> a -> Hint -> a) 
          -> (TP.ParseError -> a) 
          -> SQLHint
@@ -48,19 +57,19 @@ parseStructure = do
 joinParser :: Parser SQLHint
 joinParser = do
   void $ string "join"
-  TP.char '('
+  _ <- TP.char '('
   TP.spaces
   leftTarget <- parseStructure
   TP.spaces
-  TP.char ','
+  _ <- TP.char ','
   TP.spaces
   rightTarget <- parseStructure
   TP.spaces
-  TP.char ','
+  _ <- TP.char ','
   TP.spaces
   hint <- parseHint
   TP.spaces
-  TP.char ')'
+  _ <- TP.char ')'
   return (Join leftTarget rightTarget hint)
 
 parseHint :: Parser Hint
@@ -85,10 +94,10 @@ aliasParser :: Parser SQLHint
 aliasParser = do
   void $ string "alias "
   alias <- TP.many1 TP.alphaNum
-  return (Alias (T.pack alias))
+  return (Alias (Text.pack alias))
 
 nameParser :: Parser SQLHint
 nameParser = do
   void $ string "name "
   name <- TP.many1 TP.alphaNum
-  return (Name (T.pack name))
+  return (Name (Text.pack name))
