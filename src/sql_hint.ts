@@ -59,6 +59,27 @@ asd
 asdasd
 asd
 
+// sql-hint join( join(alias e, alias a, no-flag), alias t, no-flag)
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados e
+            left join asignaciones a using (empleado)
+            left join trimestres t using (desc)
+        GROUP BY count(*)
+        HAVING count(*) > 1
+    `;
+
+// sql-hint join( join(alias e, alias a, no-flag), alias t, no-flag)
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados e
+            left join asignaciones a using (empleado)
+            left join trimestres t using (trimestre)
+            left join materia m using (id)
+        GROUP BY count(*)
+        HAVING count(*) > 1
+    `;
+
 
 
 // sql-hint join(join(alias e, alias a, allow-no-pk), alias t, allow-no-pk)

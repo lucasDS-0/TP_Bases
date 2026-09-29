@@ -120,15 +120,18 @@ pkFromQuery b sqlp
         foldFlaggedQuery Right (\rq1 t1 rq2 t2 h -> 
             if isLeft rq1 || pkMatch rq2 t2
             then rq1
-            else if pkMatch rq1 t1 then rq2 else flagJoin t1 t2 h) fq
+            else if pkMatch rq1 t1 then rq2 else flagJoin rq1 rq2 h) fq
   where
     checks             = safetyCheck b sqlp
     fq                 = queryTree sqlp
     pkMatch rq t       = t == pkFrom (fromRight T.empty rq) b
     hintFlag AllowNoPK = T.pack " with allow."
     hintFlag NoFlag    = T.pack " without allow."
-    flagJoin t1 t2 h   = Left $ T.pack "PK-less join between " `T.append` t1 `T.append` 
-                                T.pack " and " `T.append` t2 `T.append` hintFlag h
+    flagJoin t1 t2 h   = Left $ T.pack "PK-less join between " 
+                                `T.append` (either id id t1) 
+                                `T.append` T.pack " and " 
+                                `T.append` (either id id t2) 
+                                `T.append` hintFlag h
 
 stripVar :: [ T.Text ] -> [ T.Text ]
 stripVar []                = []
@@ -167,13 +170,13 @@ parseQuery dllFile sourceFile = do
     readDLL    <- Aeson.eitherDecode <$> BL.readFile dllFile
     readSource <- TextIO.readFile sourceFile
 
-    let tablasYPKs = DLL.parseDLLPks readDLL
+    let tablesAndPKs = DLL.parseDLLPks readDLL
     let pairs = rawCode $ T.lines readSource
     let processedPairs = Prelude.concatMap (\rawPair@(RawHQPair h q) -> 
           [ h 
           , (either prettyError (prettyStatement ansi2011) (queryStatement q))
           , T.empty
-          , textFromEither . (pkFromQuery tablasYPKs) $ parsePair rawPair
+          , textFromEither . (pkFromQuery tablesAndPKs) $ parsePair rawPair
           , T.empty
           , T.replicate 30 (T.pack "-")]) pairs
     mapM_ putStrLn $ Prelude.map T.unpack processedPairs
