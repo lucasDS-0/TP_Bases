@@ -7,6 +7,7 @@ module PKDetector (parseQuery) where
 
 
 import Language.SQL.SimpleSQL.Parse (ansi2011, parseStatement, prettyError)
+import Language.SQL.SimpleSQL.Pretty (prettyStatement)
 import Data.Either (fromRight, isLeft)
 import Data.Maybe (fromJust, isJust)
 
@@ -22,6 +23,10 @@ import qualified Data.Text as T
 
 import qualified DLLParser as DLL
  
+
+data RawSQLPair
+    = RawHQPair T.Text T.Text
+    deriving (Eq, Show)
 
 data SQLPair 
     = HQPair SQLHint SQLQuery
@@ -59,7 +64,7 @@ hintQueryComparison :: T.Text -> T.Text -> Maybe T.Text
 hintQueryComparison e1 e2
     | e1 == e2  = Nothing
     | otherwise = Just (e1 `T.append` (T.pack " and ") 
-                  `T.append` e2 
+                  `T.append` (if T.null e2 then (T.pack "''") else e2)
                   `T.append` (T.pack " do not match."))
 
 hintQueryMatch :: SQLPair -> Maybe T.Text
@@ -80,8 +85,10 @@ tablesPresent l query =
     List.foldr (\t _ -> t `List.elem` tables) True (tableNames query)
   where
     tables     = Prelude.map fst l
-    tableNames = foldQuery (\name _ -> [name]) (\t1 t2 _ _ -> (++) t1 t2)
-                           (\t1 t2 _ -> (++) t1 t2) (const [])
+    tableNames = foldQuery (\name  _   -> [name]) 
+                           (\t1 t2 _ _ -> (++) t1 t2)
+                           (\t1 t2 _   -> (++) t1 t2) 
+                           (const [])
 
 safetyCheck :: [ (T.Text, T.Text) ] -> SQLPair -> Maybe T.Text
 safetyCheck ts hqp@(HQPair _ sqlQuery)
@@ -136,21 +143,39 @@ parsedQuery :: T.Text -> SQLQuery
 parsedQuery query = either (UnsupportedQuery. prettyError) statementJoinTargets
                   $ parseStatement ansi2011 (T.pack "") Nothing query
 
-readCode :: [ T.Text ] -> [ SQLPair ]
-readCode []          = []
-readCode (line : xs)
-    | T.pack hintPrefix `T.isPrefixOf` line = 
-        HQPair (parsedHint line) (parsedQuery query) : readCode rest
-    | otherwise = readCode xs
+parsePair :: RawSQLPair -> SQLPair
+parsePair (RawHQPair h q) = HQPair (parsedHint h) (parsedQuery q)
+
+rawCode :: [ T.Text ] -> [ RawSQLPair ]
+rawCode []          = []
+rawCode (line : xs)
+    | T.pack hintPrefix `T.isPrefixOf` line = RawHQPair line query : rawCode rest
+    | otherwise = rawCode xs
   where
     hintPrefix     = "// sql-hint "
     (qLines, rest) = List.span (\l -> T.strip l /= T.pack "`;") xs
     query          = T.unwords . stripVar $ List.map T.strip qLines
 
+textFromEither :: Either T.Text (T.Text, T.Text) -> T.Text
+textFromEither = 
+    either id (\(t, pk) -> (T.pack "Final PK : ") `T.append` (pkText t pk))
+  where  
+    pkText t pk = t `T.append` (T.pack ".") `T.append` pk
+
 parseQuery :: FilePath -> FilePath -> IO ()
-parseQuery dllFile hintFile = do
-    readDLL  <- Aeson.eitherDecode <$> BL.readFile dllFile
-    readHint <- TextIO.readFile hintFile
+parseQuery dllFile sourceFile = do
+    readDLL    <- Aeson.eitherDecode <$> BL.readFile dllFile
+    readSource <- TextIO.readFile sourceFile
 
     let tablasYPKs = DLL.parseDLLPks readDLL
-    mapM_ print $ Prelude.map (pkFromQuery tablasYPKs) (readCode $ T.lines readHint)
+    let pairs = rawCode $ T.lines readSource
+    let processedPairs = Prelude.concatMap (\rawPair@(RawHQPair h q) -> 
+          [ h 
+          , (either prettyError (prettyStatement ansi2011) (queryStatement q))
+          , T.empty
+          , textFromEither . (pkFromQuery tablasYPKs) $ parsePair rawPair
+          , T.empty
+          , T.replicate 30 (T.pack "-")]) pairs
+    mapM_ putStrLn $ Prelude.map T.unpack processedPairs
+  where
+    queryStatement q = (parseStatement ansi2011 (T.pack "") Nothing q)

@@ -14,5 +14,5 @@ main = do
     case args of
         (dll:query:_) -> if ".json" `isSuffixOf` dll && ".ts" `isSuffixOf` query
                          then parseQuery dll query
-                         else putStrLn "Proveer primer un archivo .json y luego uno .ts."
+                         else putStrLn "Proveer primero un archivo .json y luego uno .ts."
         _             -> putStrLn "Cantidad erronea de argumentos."
