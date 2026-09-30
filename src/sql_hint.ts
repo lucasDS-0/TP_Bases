@@ -5,6 +5,11 @@ Nulla consequat massa quis enim. Nullam quis ante.
 Nullam quis ante. 
 Etiam sit amet orci eget eros faucibus tincidunt. Donec sodales sagittis magna. 
 
+var sqlExcesoAsignaciones = `
+    SELECT empleado, count(*)
+        FROM empleados
+    `;
+
 // sql-hint 
 var sqlExcesoAsignaciones = `
     SELECT empleado, count(*)
