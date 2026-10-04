@@ -14,7 +14,7 @@ var sqlExcesoAsignaciones = `
 var sqlExcesoAsignaciones = `
     SELECT empleado, count(*)
         FROM empleados
-    `;
+    `;  
 
 Etiam ultricies nisi vel augue. Vivamus elementum semper nisi. 
 Vivamus elementum semper nisi. Aenean commodo ligula eget dolor. 

@@ -31,6 +31,7 @@ data Table = Table
     , fields  :: [ Field ] 
     , fk_list :: [ FKey ]
     , pk      :: Text.Text
+    , uk      :: Text.Text
     } deriving (Show, Generic)
 
 instance Aeson.FromJSON Table
@@ -42,7 +43,8 @@ newtype Base
 instance Aeson.FromJSON Base
 
 primaryKey :: Table -> (Text.Text, Text.Text)
-primaryKey t = (name t, pk t)
+primaryKey t = (name t, pks)
+  where pks = if Text.null (pk t) then uk t else pk t
 
 parseDLLPks :: Either String Base -> [ (Text.Text, Text.Text) ]
 parseDLLPks f = case f of
