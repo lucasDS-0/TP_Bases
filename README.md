@@ -1,6 +1,6 @@
 # Introducción
 
-La propuesta realizada es una detector de joins por _primary keys_ . \
+La propuesta realizada es una detector de clave por la cual se realiza un join.
 El proyecto consiste en un parser hecho en `Haskell` para leer código fuente en `TypeScript`, el cual detecta consultas de `SQL:2011` decoradas con una _hint_ que nos indica información sobre la consulta en sí.
 Luego, junto con una base dada por su _DLL_ en un archivo `.json`, corroboramos si dicha conosulta es un `SELECT`, si la misma cuenta con un `JOIN`, y en este caso, poder distinguir gracias la  hint ofrecida si el campo por que el cual sucede el join es una primary key o no, y si esto es informado.  \
 El resultado de este análisis, es ofrecido como resultado de la ejecución del programa.
@@ -25,7 +25,7 @@ Omitiendo archivos de configuración y metadata, el proyecto consta de la siguie
     └── sql_hint.ts
 ```
 Por un lado, en `app/Main.hs` se encuentra la entrada al programa, de este archivo se crea un ejecutable. 
-El resto de los modulos tienen cada uno una responsabilidad específica. `src/ddl.json` y `src/sql_hint.ts` son archivos de fallback en caso de no proveer otros al usar el programa, y contienen ejemplos utilizados en este prototipo.
+El resto de los modulos tienen cada uno una responsabilidad específica. `src/ddl.json` y `src/sql_hint.ts` son archivos que contienen ejemplos utilizados en este prototipo.
 
 ### Funcionamiento de los moódulos
 
