@@ -29,7 +29,7 @@ El resto de los modulos tienen cada uno una responsabilidad específica. `src/dd
 
 ### Funcionamiento de los moódulos
 
-`DLLParser` lee el contenido de `src/ddl.json` y lo embébe en GADTs para utilizar posteriormente. Por ejemplo, el DDL de la tabla empleados es el siguiente
+`DLLParser` lee el contenido de `src/ddl.json` y lo embébe en ADTs para utilizar posteriormente. Por ejemplo, el DDL de la tabla empleados es el siguiente
 
 ```JSON
 {
