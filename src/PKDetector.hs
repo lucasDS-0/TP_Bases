@@ -24,6 +24,15 @@ import qualified Data.Text as T
 import qualified DLLParser as DLL
  
 
+import qualified Data.ByteString as B
+import Data.Text.Encoding as T
+import Data.Text.Lazy             as TL
+import Data.Text.Lazy.Encoding    as TL
+import Data.Text.Lazy.IO          as TL
+--import Data.Aeson.Encode.Pretty
+import Control.Monad
+import Data.Either
+
 data RawSQLPair
     = RawHQPair T.Text T.Text
     deriving (Eq, Show)
@@ -82,7 +91,17 @@ hintQueryMatch hqp = case hqp of
 
 tablesPresent :: [ (T.Text, T.Text) ] -> SQLQuery -> Bool
 tablesPresent l query = 
-    List.foldr (\t _ -> t `List.elem` tables) True (tableNames query)
+    List.foldr (\t rec -> t `List.elem` tables && rec) True (tableNames query)
+  where
+    tables     = Prelude.map fst l
+    tableNames = foldQuery (\name  _   -> [name]) 
+                           (\t1 t2 _ _ -> (++) t1 t2)
+                           (\t1 t2 _   -> (++) t1 t2) 
+                           (const [])
+
+unknownTable :: [ (T.Text, T.Text) ] -> SQLQuery -> [ T.Text ]
+unknownTable l query = 
+    List.filter (\t -> not (t `List.elem` tables)) (tableNames query)
   where
     tables     = Prelude.map fst l
     tableNames = foldQuery (\name  _   -> [name]) 
@@ -94,10 +113,12 @@ safetyCheck :: [ (T.Text, T.Text) ] -> SQLPair -> Maybe T.Text
 safetyCheck ts hqp@(HQPair _ sqlQuery)
     | errorPresent hqp                = Just (hintQueryError hqp)
     | isJust structureCheck           = structureCheck
-    | not (tablesPresent ts sqlQuery) = Just (T.pack "Query uses non existent tables.")
+    | not (tablesPresent ts sqlQuery) = Just (T.pack $ "Non existent table " 
+                                      ++ T.unpack (Prelude.head tableNotPresent))
     | otherwise = Nothing
   where
     structureCheck = hintQueryMatch hqp
+    tableNotPresent = unknownTable ts sqlQuery
 
 pkFrom :: T.Text -> [ (T.Text, T.Text) ] -> T.Text
 pkFrom e = List.foldr (\(t,pk) rec -> if t == e then pk else rec) T.empty
@@ -179,6 +200,6 @@ parseQuery dllFile sourceFile = do
           , textFromEither . (pkFromQuery tablesAndPKs) $ parsePair rawPair
           , T.empty
           , T.replicate 30 (T.pack "-")]) pairs
-    mapM_ putStrLn $ Prelude.map T.unpack processedPairs
+    mapM_ Prelude.putStrLn $ Prelude.map T.unpack processedPairs
   where
     queryStatement q = (parseStatement ansi2011 (T.pack "") Nothing q)
