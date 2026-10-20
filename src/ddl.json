@@ -19,8 +19,8 @@
       }
     ],
     "fk_list": [],
-    "pk":"codigo",
-    "uk":""
+    "pk": [ "codigo" ],
+    "uk": [ ]
   }
   ,
   {
@@ -38,8 +38,8 @@
       }
     ],
     "fk_list": [],
-    "pk":"trimestre",
-    "uk", ""
+    "pk": [ "trimestre" ],
+    "uk": [ ]
   }
   ,
   {
@@ -57,8 +57,69 @@
       }
     ],
     "fk_list": [],
-    "pk":"empleado",
-    "uk": ""
+    "pk": [ "empleado" ],
+    "uk": [ ]
   }
-
+  ,
+  {
+    "name": "componentes",
+    "fields": [
+      {
+        "field_name": "codigo",
+        "field_type": "VARCHAR(30)",
+        "not_null": true
+      },
+      {
+        "field_name": "maquina",
+        "field_type": "VARCHAR(64)",
+        "not_null": true
+      },
+      {
+        "field_name": "fabricante",
+        "field_type": "VARCHAR(64)",
+        "not_null": true
+      }
+    ],
+    "fk_list": [],
+    "pk": [ "codigo", "maquina" ],
+    "uk": [ ]
+  }
+  ,
+  {
+    "name": "maquinas",
+    "fields": [
+      {
+        "field_name": "codigo",
+        "field_type": "VARCHAR(30)",
+        "not_null": true
+      },
+      {
+        "field_name": "fabricante",
+        "field_type": "VARCHAR(64)",
+        "not_null": true
+      }
+    ],
+    "fk_list": [],
+    "pk": [ "codigo" ],
+    "uk": [ ]
+  }
+  ,
+  {
+    "name": "fabricantes",
+    "fields": [
+      {
+        "field_name": "legajo",
+        "field_type": "VARCHAR(30)",
+        "not_null": true
+      },
+      {
+        "field_name": "maquina",
+        "field_type": "VARCHAR(64)",
+        "not_null": true
+      }
+    ],
+    "fk_list": [],
+    "pk": [ "legajo" ],
+    "uk": [ ]
+  }
 ]

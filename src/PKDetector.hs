@@ -43,11 +43,11 @@ data SQLPair
 
 data FlaggedQuery 
     = Table T.Text
-    | JoinClause FlaggedQuery T.Text FlaggedQuery T.Text HintFlag
+    | JoinClause FlaggedQuery [ T.Text ] FlaggedQuery [ T.Text ] HintFlag
     deriving (Eq, Show)
 
 foldFlaggedQuery :: (T.Text -> a) 
-                 -> (a -> T.Text -> a -> T.Text -> HintFlag -> a)
+                 -> (a -> [ T.Text ] -> a -> [ T.Text ] -> HintFlag -> a)
                  -> FlaggedQuery
                  -> a
 foldFlaggedQuery fTable fJoin fq = case fq of
@@ -74,7 +74,7 @@ hintQueryComparison e1 e2
     | e1 == e2  = Nothing
     | otherwise = Just (e1 `T.append` (T.pack " and ") 
                   `T.append` (if T.null e2 then (T.pack "''") else e2)
-                  `T.append` (T.pack " do not match."))
+                  `T.append` (T.pack " do not match. "))
 
 hintQueryMatch :: SQLPair -> Maybe T.Text
 hintQueryMatch hqp = case hqp of
@@ -87,9 +87,9 @@ hintQueryMatch hqp = case hqp of
         (<>) (hintQueryMatch (HQPair h1 q1)) (hintQueryMatch (HQPair h2 q2))
     HQPair (Join h1 h2 _) (JoinUsingClause q1 q2 _) ->
         (<>) (hintQueryMatch (HQPair h1 q1)) (hintQueryMatch (HQPair h2 q2))
-    _      -> Just (T.pack "Hint and query structures are not equivalent.")
+    _      -> Just (T.pack "Hint and query structures are not equivalent. ")
 
-tablesPresent :: [ (T.Text, T.Text) ] -> SQLQuery -> Bool
+tablesPresent :: [ (T.Text, [ T.Text ]) ] -> SQLQuery -> Bool
 tablesPresent l query = 
     List.foldr (\t rec -> t `List.elem` tables && rec) True (tableNames query)
   where
@@ -99,7 +99,7 @@ tablesPresent l query =
                            (\t1 t2 _   -> (++) t1 t2) 
                            (const [])
 
-unknownTable :: [ (T.Text, T.Text) ] -> SQLQuery -> [ T.Text ]
+unknownTable :: [ (T.Text, [ T.Text ]) ] -> SQLQuery -> [ T.Text ]
 unknownTable l query = 
     List.filter (\t -> not (t `List.elem` tables)) (tableNames query)
   where
@@ -109,19 +109,16 @@ unknownTable l query =
                            (\t1 t2 _   -> (++) t1 t2) 
                            (const [])
 
-safetyCheck :: [ (T.Text, T.Text) ] -> SQLPair -> Maybe T.Text
-safetyCheck ts hqp@(HQPair _ sqlQuery)
-    | errorPresent hqp                = Just (hintQueryError hqp)
-    | isJust structureCheck           = structureCheck
-    | not (tablesPresent ts sqlQuery) = Just (T.pack $ "Non existent table " 
-                                      ++ T.unpack (Prelude.head tableNotPresent))
+safetyCheck :: [ (T.Text, [ T.Text ]) ] -> SQLPair -> Maybe T.Text
+safetyCheck base hqp@(HQPair _ sqlQuery)
+    | errorPresent hqp                  = Just (hintQueryError hqp)
+    | isJust structureCheck             = structureCheck
+    | not (tablesPresent base sqlQuery) = Just (T.pack $ "Non existent table " 
+                                        ++ T.unpack (Prelude.head tableNotPresent))
     | otherwise = Nothing
   where
     structureCheck = hintQueryMatch hqp
-    tableNotPresent = unknownTable ts sqlQuery
-
-pkFrom :: T.Text -> [ (T.Text, T.Text) ] -> T.Text
-pkFrom e = List.foldr (\(t,pk) rec -> if t == e then pk else rec) T.empty
+    tableNotPresent = unknownTable base sqlQuery
 
 queryTree :: SQLPair -> FlaggedQuery
 queryTree (HQPair sqlh sqlq) = foldQuery 
@@ -134,20 +131,23 @@ queryTree (HQPair sqlh sqlq) = foldQuery
         Join h1 h2 h -> JoinClause (r1 h1) f1 (r2 h2) f2 h
         _            -> PKDetector.Table T.empty
 
-pkFromQuery :: [ (T.Text, T.Text) ] -> SQLPair -> Either T.Text (T.Text, T.Text)
-pkFromQuery b sqlp 
+pkFrom :: T.Text -> [ (T.Text, [ T.Text ]) ] -> [ T.Text ]
+pkFrom e = List.foldr (\(t,pk) rec -> if t == e then pk else rec) [ ]
+
+pkFromQuery :: [ (T.Text, [ T.Text ]) ] -> SQLPair -> Either T.Text (T.Text, [ T.Text ])
+pkFromQuery base sqlp 
     | isJust checks = Left $ fromJust checks
-    | otherwise     = either Left (\t -> Right (t, pkFrom t b)) $ 
-        foldFlaggedQuery Right (\rq1 t1 rq2 t2 h -> 
-            if isLeft rq1 || pkMatch rq2 t2
+    | otherwise     = either Left (\t -> Right (t, pkFrom t base)) $ 
+        foldFlaggedQuery Right (\rq1 f1 rq2 f2 h -> 
+            if isLeft rq1 || pkMatch rq2 f2
             then rq1
-            else if pkMatch rq1 t1 then rq2 else flagJoin rq1 rq2 h) fq
+            else if pkMatch rq1 f1 then rq2 else flagJoin rq1 rq2 h) fq
   where
-    checks             = safetyCheck b sqlp
+    checks             = safetyCheck base sqlp
     fq                 = queryTree sqlp
-    pkMatch rq t       = t == pkFrom (fromRight T.empty rq) b
-    hintFlag AllowNoPK = T.pack " with allow."
-    hintFlag NoFlag    = T.pack " without allow."
+    pkMatch rq t       = t == pkFrom (fromRight T.empty rq) base
+    hintFlag AllowNoPK = T.pack " WITH allow."
+    hintFlag NoFlag    = T.pack " WITHOUT allow."
     flagJoin t1 t2 h   = Left $ T.pack "PK-less join between " 
                                 `T.append` (either id id t1) 
                                 `T.append` T.pack " and " 
@@ -180,10 +180,11 @@ rawCode (line : xs)
     (qLines, rest) = List.span (\l -> T.strip l /= T.pack "`;") xs
     query          = T.unwords . stripVar $ List.map T.strip qLines
 
-textFromEither :: Either T.Text (T.Text, T.Text) -> T.Text
+textFromEither :: Either T.Text (T.Text, [ T.Text ]) -> T.Text
 textFromEither = 
-    either id (\(t, pk) -> (T.pack "Final PK : ") `T.append` (pkText t pk))
-  where  
+    either id (\ts -> (T.pack "Final PK : ") `T.append` (T.intercalate ", " (pksText ts)))
+  where
+    pksText (t, l) = Prelude.map (pkText t) l
     pkText t pk = t `T.append` (T.pack ".") `T.append` pk
 
 parseQuery :: FilePath -> FilePath -> IO ()

@@ -5,13 +5,13 @@ Nulla consequat massa quis enim. Nullam quis ante.
 Nullam quis ante. 
 Etiam sit amet orci eget eros faucibus tincidunt. Donec sodales sagittis magna. 
 
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados
     `;
 
 // sql-hint 
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados
     `;  
@@ -22,7 +22,7 @@ Donec sodales sagittis magna. Curabitur ullamcorper ultricies nisi.
 Maecenas tempus, tellus eget condimentum rhoncus, 
 
 // sql-hint name
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados
     `;
@@ -34,7 +34,7 @@ Donec sodales sagittis magna. Nullam quis ante.
 
 
 // sql-hint name asignaciones
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados
     `;
@@ -46,7 +46,7 @@ Donec sodales sagittis magna. Nullam quis ante.
 
 
 // sql-hint alias empleados
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados
     `;
@@ -58,7 +58,7 @@ Phasellus viverra nulla ut metus varius laoreet.
 Phasellus viverra nulla ut metus varius laoreet. 
 
 // sql-hint name empleados
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados e
     `;
@@ -70,7 +70,7 @@ Phasellus viverra nulla ut metus varius laoreet.
 Phasellus viverra nulla ut metus varius laoreet. 
 
 // sql-hint name empleados
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados
     `;
@@ -78,7 +78,7 @@ var sqlExcesoAsignaciones = `
 Donec sodales sagittis magna. Donec sodales sagittis magna. 
 
 // sql-hint join( join(alias e, alias a, no-flag), alias t, no-flag)
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados e
             left join asignaciones a using (empleado)
@@ -91,7 +91,7 @@ Maecenas tempus, tellus eget condimentum rhoncus, sem
 Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.
 
 // sql-hint join( join(alias e, alias a, no-flag), alias t, no-flag)
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados e
             left join asignaciones a using (empleado)
@@ -105,7 +105,7 @@ Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.
 
 
 // sql-hint join( join(alias e, alias a, no-flag), alias t, no-flag)
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados e
             left join asignaciones a using (empleado)
@@ -118,13 +118,42 @@ var sqlExcesoAsignaciones = `
 sit amet adipiscing sem neque sed ipsum. In enim justo, rhoncus ut
 
 // sql-hint join(join(alias e, alias a, allow-no-pk), alias t, allow-no-pk)
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT test, count(*)
         FROM examenes e
             left join asignaciones a using (test)
             left join trimestres t using (trimestre)
         GROUP BY count(*)
         HAVING count(*) > 1
+    `;
+
+// sql-hint join(alias c, alias f, no-flag)
+var sqlQ = `
+    SELECT maquina
+        FROM componentes c
+            left join fabricantes f on c.codigo = f.legajo and c.maquina = f.maquina
+    `;
+
+
+// sql-hint join(alias c, alias m, no-flag)
+var sqlQ = `
+    SELECT maquina
+        FROM componentes c
+            left join maquinas m on c.codigo = m.codigo and c.fabricante = m.fabricante
+    `;
+
+// sql-hint join(alias c, alias m, allow-no-pk)
+var sqlQ = `
+    SELECT maquina
+        FROM componentes c
+            left join maquinas m on c.codigo = m.codigo and c.fabricante = m.fabricante
+    `;
+
+// sql-hint join(alias m, alias c, no-flag)
+var sqlQ = `
+    SELECT codigo
+        FROM maquinas m
+            left join componentes c on c.codigo = m.codigo
     `;
 
 sit amet adipiscing sem neque sed ipsum.
