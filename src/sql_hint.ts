@@ -157,3 +157,20 @@ var sqlQ = `
     `;
 
 sit amet adipiscing sem neque sed ipsum.
+
+
+// sql-hint join(join( alias m, alias c, no-flag), alias f, no-flag)
+var sqlQ = `
+    SELECT codigo
+        FROM maquinas m
+            left join componentes c on c.codigo = m.codigo
+            left join fabricantes f using (legajo)
+    `;
+
+// sql-hint join(join( alias m, alias c, no-flag), alias f, no-flag)
+var sqlQ = `
+    SELECT codigo
+        FROM maquinas m
+            left join componentes c on c.codigo = m.codigo
+            left join fabricantes f on c.codigo = f.legajo
+    `;

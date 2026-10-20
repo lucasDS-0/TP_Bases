@@ -11,6 +11,7 @@ module QueryParser
 import Language.SQL.SimpleSQL.Syntax as S
 
 import qualified Data.Text as Text
+import Data.List (partition)
 
 
 nameAsText :: Name -> Text.Text
@@ -46,9 +47,9 @@ extractAlias (Alias name _) = nameAsText name
 joinOnTargets :: ScalarExpr -> [ (Text.Text, Text.Text) ]
 joinOnTargets (BinOp (Iden e1) _ (Iden e2))   = 
     [(namesAsText e1!!0, namesAsText e1!!1), (namesAsText e2!!0, namesAsText e2!!1)]
-joinOnTargets (BinOp (BinOp s1l _ s1r) _ (BinOp s2l _ s2r)) = 
-    joinOnTargets (BinOp s1l [] s1r) ++ joinOnTargets (BinOp s2l [] s2r)
-joinOnTargets _                               = [ ]
+joinOnTargets (BinOp b1@(BinOp _ _ _) _ b2@(BinOp _ _ _)) = 
+    joinOnTargets b1 ++ joinOnTargets b2
+joinOnTargets _ = [ ]
 
 extractTargets :: TableRef -> SQLQuery
 extractTargets t = case t of
@@ -66,20 +67,18 @@ extractTargets t = case t of
               JoinUsingClause (extractTargets tra) (extractTargets trb) (namesAsText name)
             JoinOn se        ->
               uncurry (JoinOnClause (extractTargets tra) (extractTargets trb)) 
-                (targetList (extractTargets tra) (extractTargets trb) (joinOnTargets se))
+                (targetList (extractTargets trb) (joinOnTargets se))
     _  -> UnsupportedQuery (Text.pack "Invalid Query.")
   where
     subQueryTable tr alias = case extractTargets tr of
         QueryParser.Table name _ -> QueryParser.Table name (extractAlias alias)
         _                        -> UnsupportedQuery (Text.pack "Invalid Query.")
     
-targetList :: SQLQuery -> SQLQuery -> [ (Text.Text, Text.Text) ] 
-           -> ([ Text.Text ], [ Text.Text ])
-targetList (QueryParser.Table n1 a1) (QueryParser.Table n2 a2) tar = 
-    let takeFields n a t = Prelude.map snd 
-                         $ Prelude.filter (\(tr, _) -> tr == n || tr == a) t
-    in (takeFields n1 a1 tar, takeFields n2 a2 tar)
-targetList _ _ _ = ([ ], [ ])
+targetList :: SQLQuery -> [ (Text.Text, Text.Text) ] -> ([ Text.Text ], [ Text.Text ])
+targetList (QueryParser.Table n a) tar = 
+    let (tr2, tr1) = partition (\(tr, _) -> tr == n || tr == a) tar
+    in (Prelude.map snd tr1, Prelude.map snd tr2)
+targetList _ _ = ([ ], [ ])
 
 statementJoinTargets :: Statement -> SQLQuery
 statementJoinTargets (SelectStatement (Select{qeFrom= [fromRecord]})) =
