@@ -55,7 +55,7 @@ Por otro lado, pro ejemplo, la siguiente es una consulta presente en `src/sql_hi
 
 ```TypeScript
 // sql-hint join( join(alias e, alias a, no-flag), alias t, no-flag)
-var sqlExcesoAsignaciones = `
+var sqlQ = `
     SELECT empleado, count(*)
         FROM empleados e
             left join asignaciones a using (empleado)
