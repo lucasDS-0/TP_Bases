@@ -9,7 +9,7 @@ module PKDetector (parseQuery) where
 import Language.SQL.SimpleSQL.Parse (ansi2011, parseStatement, prettyError)
 import Language.SQL.SimpleSQL.Pretty (prettyStatement)
 import Data.Either (fromRight, isLeft)
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust, isJust, Maybe (Nothing))
 
 import HintParser (HintFlag (..), parseHintLine, SQLHint (..))
 import QueryParser (foldQuery, SQLQuery (..), statementJoinTargets)
@@ -21,7 +21,7 @@ import qualified Data.List as List
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 
-import qualified DLLParser as DLL
+import qualified DLLParser as DLL 
  
 
 import qualified Data.ByteString as B
@@ -34,7 +34,7 @@ import Control.Monad
 import Data.Either
 
 data RawSQLPair
-    = RawHQPair T.Text T.Text
+    = RawHQPair T.Text T.Text --Bool -- True = has hint
     deriving (Eq, Show)
 
 data SQLPair 
@@ -78,6 +78,7 @@ hintQueryComparison e1 e2
 
 hintQueryMatch :: SQLPair -> Maybe T.Text
 hintQueryMatch hqp = case hqp of
+    HQPair NoHint _ -> Nothing
     HQPair (Malformed _) (UnsupportedQuery _) -> Nothing
     HQPair (HintParser.Alias a) (QueryParser.Table _ alias) -> 
         hintQueryComparison a alias
@@ -128,6 +129,7 @@ queryTree (HQPair sqlh sqlq) = foldQuery
     (\_                 -> \_ -> PKDetector.Table T.empty) sqlq sqlh
   where
     joinClause r1 r2 f1 f2 q = case q of
+        NoHint       -> JoinClause (r1 NoHint) f1 (r2 NoHint) f2 NoFlag
         Join h1 h2 h -> JoinClause (r1 h1) f1 (r2 h2) f2 h
         _            -> PKDetector.Table T.empty
 
@@ -159,7 +161,9 @@ stripVar []                = []
 stripVar (varLine : query) = T.tail (T.dropWhile (/= '`') varLine) : query
 
 parsedHint :: T.Text -> SQLHint
-parsedHint hint = case TP.parse parseHintLine "" hint of
+parsedHint hint 
+    | T.null hint = NoHint
+    | otherwise = case TP.parse parseHintLine "" hint of
     Left  err    -> Malformed err
     Right parsed -> parsed
 
@@ -173,12 +177,22 @@ parsePair (RawHQPair h q) = HQPair (parsedHint h) (parsedQuery q)
 rawCode :: [ T.Text ] -> [ RawSQLPair ]
 rawCode []          = []
 rawCode (line : xs)
-    | T.pack hintPrefix `T.isPrefixOf` line = RawHQPair line query : rawCode rest
+    | T.pack hintPrefix `T.isPrefixOf` line = 
+        RawHQPair line query : rawCode (snd $ queryAndRest xs)
+    | T.pack queryPrefix `T.isPrefixOf` line = 
+        RawHQPair T.empty queryOnly : rawCode (snd $ queryAndRest (line:xs))
     | otherwise = rawCode xs
   where
     hintPrefix     = "// sql-hint "
-    (qLines, rest) = List.span (\l -> T.strip l /= T.pack "`;") xs
-    query          = T.unwords . stripVar $ List.map T.strip qLines
+    queryPrefix    = "var sqlQ"
+    queryAndRest l =
+        (\(q,r) -> if Prelude.null r || Prelude.head r == T.pack "`;" 
+                   then (q,r) 
+                   else (q ++ [Prelude.head r], Prelude.tail r)) 
+        $ List.span (\l -> T.strip l /= T.pack "`;") l
+    queryStrip     = (T.takeWhile (/= '`')) . T.unwords . stripVar . (List.map T.strip)
+    query          = queryStrip (fst $ queryAndRest xs)
+    queryOnly      = queryStrip (fst $ queryAndRest (line:xs))
 
 textFromEither :: Either T.Text (T.Text, [ T.Text ]) -> T.Text
 textFromEither = 

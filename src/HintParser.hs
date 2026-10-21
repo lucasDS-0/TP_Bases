@@ -25,21 +25,24 @@ data SQLHint
     | Name Text.Text
     | Join SQLHint SQLHint HintFlag
     | Malformed TP.ParseError
+    | NoHint
     deriving (Eq, Show)
 
 foldHint :: (Text.Text -> a) 
          -> (Text.Text -> a) 
          -> (a -> a -> HintFlag -> a) 
          -> (TP.ParseError -> a) 
+         -> a
          -> SQLHint
          -> a
-foldHint fAlias fName fJoin fMalformed sqlh = case sqlh of
+foldHint fAlias fName fJoin fMalformed fNoHint sqlh = case sqlh of
     Alias alias        -> fAlias alias
     Name name          -> fName name
     Join sqlh1 sqlh2 h -> fJoin (hrec sqlh1) (hrec sqlh2) h
     Malformed err      -> fMalformed err
+    NoHint             -> fNoHint
   where
-    hrec = foldHint fAlias fName fJoin fMalformed
+    hrec = foldHint fAlias fName fJoin fMalformed fNoHint
 
 parseHintLine :: Parser SQLHint
 parseHintLine = do
