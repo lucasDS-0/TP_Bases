@@ -31,7 +31,6 @@ import Data.Text.Lazy.Encoding    as TL
 import Data.Text.Lazy.IO          as TL
 --import Data.Aeson.Encode.Pretty
 import Control.Monad
-import Data.Either
 
 data RawSQLPair
     = RawHQPair T.Text T.Text --Bool -- True = has hint
@@ -183,13 +182,14 @@ rawCode (line : xs)
         RawHQPair T.empty queryOnly : rawCode (snd $ queryAndRest (line:xs))
     | otherwise = rawCode xs
   where
-    hintPrefix     = "// sql-hint "
-    queryPrefix    = "var sqlQ"
-    queryAndRest l =
+    hintPrefix      = "// sql-hint "
+    queryPrefix     = "var sqlQ"
+    queryAndRest ys =
         (\(q,r) -> if Prelude.null r || Prelude.head r == T.pack "`;" 
                    then (q,r) 
                    else (q ++ [Prelude.head r], Prelude.tail r)) 
-        $ List.span (\l -> T.strip l /= T.pack "`;") l
+        $ List.span (\l -> T.strip l /= T.pack "`;" 
+            && not (T.isSuffixOf (T.pack "`;") l)) ys
     queryStrip     = (T.takeWhile (/= '`')) . T.unwords . stripVar . (List.map T.strip)
     query          = queryStrip (fst $ queryAndRest xs)
     queryOnly      = queryStrip (fst $ queryAndRest (line:xs))

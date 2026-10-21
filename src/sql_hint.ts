@@ -173,11 +173,16 @@ var sqlQ = `
         FROM maquinas m
             left join componentes c on c.codigo = m.codigo
             left join fabricantes f on c.codigo = f.legajo
-    `;
-
+     `;
 
 var sqlQ = `
     SELECT codigo
         FROM maquinas m
             left join componentes c on c.codigo = m.codigo
             left join fabricantes f on c.codigo = f.legajo`;
+
+var sqlQ = `
+    SELECT maquina
+        FROM componentes c
+            left join maquinas m on c.codigo = m.codigo and c.fabricante = m.fabricante
+    `;
